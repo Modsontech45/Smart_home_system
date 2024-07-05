@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SOFT LIFE</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://kit.fontawesome.com/2bd249f159.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Audiowide">
+</head>
+<body>
+  <div class="sidebar">
+    <h2>SOFT LIFE</h2>
+    <ul>
+      <li>Control Panel</li>
+      <li>Settings</li>
+    </ul>
+  </div>
+  <div class="header">
+    <h2>Control Panel</h2>
+  </div>
+  <div class="container">
+    
+    <div class="controls">
+      <div class="control house">
+        
+        <p><i class="fa-solid fa-house"></i> HOUSE LIGHT <span id="output12State">off</span></p>
+        <label class="switch">
+          <input type="checkbox" id="toggle12" onclick="controlLED('12', this.checked ? 'on' : 'off')">
+          <span class="slider round"></span>
+        </label>
+      </div>
+      <div class="control">
+        <p><i class="fa-solid fa-kitchen-set"></i> KITCHEN LIGHT <span id="output14State">off</span></p>
+        <label class="switch">
+          <input type="checkbox" id="toggle14" onclick="controlLED('14', this.checked ? 'on' : 'off')">
+          <span class="slider round"></span>
+        </label>
+      </div>
+      <div class="control">
+        <p><i class="fa-regular fa-lightbulb"></i> BEDROOM LIGHT <span id="output16State">off</span></p>
+        <label class="switch">
+          <input type="checkbox" id="toggle21" onclick="controlLED('21', this.checked ? 'on' : 'off')">
+          <span class="slider round"></span>
+        </label>
+      </div>
+      <div class="control">
+        <p><i class="fa-solid fa-lightbulb"></i> GUEST ROOM LIGHT <span id="output18State">off</span></p>
+        <label class="switch">
+          <input type="checkbox" id="toggle18" onclick="controlLED('18', this.checked ? 'on' : 'off')">
+          <span class="slider round"></span>
+        </label>
+      </div>
+      <div class="control">
+        <p><i class="fa-solid fa-lightbulb"></i> HALL LIGHT <span id="output19State">off</span></p>
+        <label class="switch">
+          <input type="checkbox" id="toggle19" onclick="controlLED('19', this.checked ? 'on' : 'off')">
+          <span class="slider round"></span>
+        </label>
+      </div>
+      <div class="status-container">
+        <p><i class="fa-solid fa-microchip"></i><span class="esp32">ESP32    </span> <span id="statusLabel" class="status-label">offline</span></p>
+      </div>
+      
+    </div>
+    <div class="dashboard">
+      <div class="gauge-container">
+          <div id="humidity-gauge" class="gauge"></div>
+          <p class="p1">HUMIDITY</p>
+      </div>
+      <div class="gauge-container">
+          <div id="temperature-gauge" class="gauge"></div>
+          <p class="p1">TEMPERATURE</p>
+      </div>
+      <div class="chart-container">
+          <canvas id="humidity-chart"></canvas>
+      </div>
+      <div class="chart-container">
+          <canvas id="temperature-chart"></canvas>
+      </div>
+  </div>
+   
+  </div>
+
+  <!-- Include Chart.js gauge plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-gauge@1.0.2"></script>
+
+  <script>
+    const esp32_ip = 'http://192.168.207.1';  // Replace with your ESP32 IP address
+  
+    function controlLED(pin, state) {
+      const url = `${esp32_ip}/gpio/${pin}/${state}`;
+      fetch(url)
+        .then(response => response.text())
+        .then(state => {
+          document.getElementById(`output${pin}State`).textContent = state;
+          document.getElementById(`toggle${pin}`).checked = (state === 'on');
+        })
+        .catch(error => console.error('Control LED Error:', error));
+    }
+  
+    function getStatus() {
+      fetch(`${esp32_ip}/status`)
+        .then(response => response.json())
+        .then(status => {
+          document.getElementById('output12State').textContent = status.output12;
+          document.getElementById('output14State').textContent = status.output14;
+          document.getElementById('output21State').textContent = status.output21;
+          document.getElementById('output18State').textContent = status.output18;
+          document.getElementById('output19State').textContent = status.output19;
+          document.getElementById('temperature').textContent = status.temperature;
+          document.getElementById('humidity').textContent = status.humidity;
+          updateGauge(temperatureGauge, status.temperature);
+          updateGauge(humidityGauge, status.humidity);
+  
+          // Set the switch states based on the status
+          document.getElementById('toggle12').checked = (status.output12 === 'on');
+          document.getElementById('toggle14').checked = (status.output14 === 'on');
+          document.getElementById('toggle21').checked = (status.output21 === 'on');
+          document.getElementById('toggle18').checked = (status.output18 === 'on');
+          document.getElementById('toggle19').checked = (status.output19 === 'on');
+        })
+        .catch(error => console.error('Get status Error:', error));
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+    const humidityGauge = document.getElementById('humidity-gauge');
+    const temperatureGauge = document.getElementById('temperature-gauge');
+    const humidityChartCtx = document.getElementById('humidity-chart').getContext('2d');
+    const temperatureChartCtx = document.getElementById('temperature-chart').getContext('2d');
+
+    let humidityData = [];
+    let temperatureData = [];
+
+    function randomValue(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function updateGauges() {
+        const humidity = randomValue(20, 70);
+        const temperature = randomValue(20, 50);
+
+        drawGauge(humidityGauge, humidity, '%H');
+        drawGauge(temperatureGauge, temperature, '°C');
+
+        updateChart(humidityChart, humidityData, humidity);
+        updateChart(temperatureChart, temperatureData, temperature);
+    }
+
+    function drawGauge(element, value, unit) {
+        element.innerHTML = `
+            <svg viewBox="0 0 100 50">
+                <path d="M 10 40 Q 50 0 90 40" stroke="#333" stroke-width="10" fill="none"/>
+                <path d="M 10 40 Q 50 0 90 40" stroke="${value > 50 ? '#ff0000' : '#00ff00'}" stroke-width="10" stroke-dasharray="${value / 100 * 80} ${80 - value / 100 * 80}" fill="none"/>
+                <text x="50" y="45" text-anchor="middle" fill="#fff" font-size="10">${value} ${unit}</text>
+            </svg>
+        `;
+    }
+
+    function updateChart(chart, data, value) {
+        if (data.length >= 12) {
+            data.shift();
+        }
+        data.push(value);
+        chart.update();
+    }
+
+    const humidityChart = new Chart(humidityChartCtx, {
+        type: 'line',
+        data: {
+            labels: Array(12).fill(''),
+            datasets: [{
+                label: 'Current Humidity',
+                data: humidityData,
+                borderColor: '#ffcc00',
+                backgroundColor: 'rgba(255, 204, 0, 0.1)',
+                fill: true
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+
+    const temperatureChart = new Chart(temperatureChartCtx, {
+        type: 'line',
+        data: {
+            labels: Array(12).fill(''),
+            datasets: [{
+                label: 'Current Temperature',
+                data: temperatureData,
+                borderColor: '#00ff00',
+                backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                fill: true
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 50
+                }
+            }
+        }
+    });
+    setInterval(updateGauges, 1000);
+
+    function updateStatusLabel() {
+      // Simulate fetching status from the server
+      fetch('http://192.168.164.1/status')
+
+        .then(response => response.json())
+        .then(data => {
+          const status = data.status; // assuming the server returns a JSON with a "status" key
+          document.getElementById('statusLabel').textContent = status;
+        })
+        .catch(error => {
+          console.error('Error fetching status:', error);
+          document.getElementById('statusLabel').textContent = 'offline';
+        });
+    }
+ window.onload = updateStatusLabel;
+ setInterval(updateStatusLabel, 1000);
+  
+
+   
+});
+
+
+   
+  </script>
+</body>
+</html>
